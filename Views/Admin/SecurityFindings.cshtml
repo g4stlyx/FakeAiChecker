@@ -1,0 +1,89 @@
+@model IEnumerable<FakeAiChecker.Models.SecretFinding>
+@{
+    ViewData["Title"] = "Security Findings - Admin Panel";
+}
+
+<div class="container mt-5">
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow">
+                <div class="card-header bg-danger text-white">
+                    <h2 class="card-title mb-0">
+                        <i class="fas fa-shield-alt me-2"></i>Security Findings - Admin Panel
+                    </h2>
+                    <small>Internal use only - Do not share with regular users</small>
+                </div>
+                <div class="card-body">
+                    @if (Model.Any())
+                    {
+                        <div class="alert alert-warning" role="alert">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            <strong>@Model.Count() security findings detected</strong> in uploaded files. Review and take appropriate action.
+                        </div>
+
+                        <div class="table-responsive">
+                            <table class="table table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>File</th>
+                                        <th>Secret Type</th>
+                                        <th>Secret Value</th>
+                                        <th>Session ID</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var finding in Model)
+                                    {
+                                        <tr>
+                                            <td>@finding.FoundAt.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                                            <td>
+                                                <code>@finding.FileName</code>
+                                                @if (!string.IsNullOrEmpty(finding.FilePath))
+                                                {
+                                                    <br><small class="text-muted">@finding.FilePath</small>
+                                                }
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-warning">@finding.SecretType</span>
+                                            </td>
+                                            <td>
+                                                <code class="text-danger">@finding.SecretValue</code>
+                                                @if (!string.IsNullOrEmpty(finding.Context))
+                                                {
+                                                    <br><small class="text-muted">Context: @finding.Context</small>
+                                                }
+                                            </td>
+                                            <td>
+                                                <small>@finding.ScanResult.SessionId</small>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="alert alert-success" role="alert">
+                            <i class="fas fa-check-circle me-2"></i>
+                            No security findings recorded yet.
+                        </div>
+                    }
+
+                    <div class="mt-3">
+                        <a href="@Url.Action("ScanResults", "Admin")" class="btn btn-secondary me-2">
+                            <i class="fas fa-list me-1"></i>View All Scans
+                        </a>
+                        <a href="@Url.Action("AuditLogs", "Admin")" class="btn btn-secondary me-2">
+                            <i class="fas fa-clipboard-list me-1"></i>Audit Logs
+                        </a>
+                        <a href="@Url.Action("Index", "Home")" class="btn btn-primary">
+                            <i class="fas fa-home me-1"></i>Back to Main App
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

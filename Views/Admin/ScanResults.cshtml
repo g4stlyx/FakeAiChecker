@@ -1,0 +1,94 @@
+@model IEnumerable<FakeAiChecker.Models.ScanResult>
+@{
+    ViewData["Title"] = "Scan Results - Admin Panel";
+}
+
+<div class="container mt-5">
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h2 class="card-title mb-0">
+                        <i class="fas fa-search me-2"></i>All Scan Results - Admin Panel
+                    </h2>
+                </div>
+                <div class="card-body">
+                    @if (Model.Any())
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>File</th>
+                                        <th>AI %</th>
+                                        <th>Human %</th>
+                                        <th>Secrets Found</th>
+                                        <th>Session ID</th>
+                                        <th>User IP</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var result in Model)
+                                    {
+                                        <tr class="@(result.SecretFindings.Any() ? "table-warning" : "")">
+                                            <td>@result.ScanDate.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                                            <td><code>@result.FileName</code></td>
+                                            <td>
+                                                <div class="progress" style="height: 20px;">
+                                                    <div class="progress-bar bg-warning" 
+                                                         style="width: @result.FakeAiPercentage%">
+                                                        @result.FakeAiPercentage%
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div class="progress" style="height: 20px;">
+                                                    <div class="progress-bar bg-success" 
+                                                         style="width: @result.HumanPercentage%">
+                                                        @result.HumanPercentage%
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                @if (result.SecretFindings.Any())
+                                                {
+                                                    <span class="badge bg-danger">@result.SecretFindings.Count</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge bg-success">0</span>
+                                                }
+                                            </td>
+                                            <td><small>@result.SessionId</small></td>
+                                            <td><small>@result.UserIpAddress</small></td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="alert alert-info" role="alert">
+                            <i class="fas fa-info-circle me-2"></i>
+                            No scan results found.
+                        </div>
+                    }
+
+                    <div class="mt-3">
+                        <a href="@Url.Action("SecurityFindings", "Admin")" class="btn btn-danger me-2">
+                            <i class="fas fa-shield-alt me-1"></i>Security Findings
+                        </a>
+                        <a href="@Url.Action("AuditLogs", "Admin")" class="btn btn-secondary me-2">
+                            <i class="fas fa-clipboard-list me-1"></i>Audit Logs
+                        </a>
+                        <a href="@Url.Action("Index", "Home")" class="btn btn-primary">
+                            <i class="fas fa-home me-1"></i>Back to Main App
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

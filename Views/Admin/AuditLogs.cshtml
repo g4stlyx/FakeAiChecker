@@ -1,0 +1,100 @@
+@model IEnumerable<FakeAiChecker.Models.AuditLog>
+@{
+    ViewData["Title"] = "Audit Logs - Admin Panel";
+}
+
+<div class="container mt-5">
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow">
+                <div class="card-header bg-info text-white">
+                    <h2 class="card-title mb-0">
+                        <i class="fas fa-clipboard-list me-2"></i>Audit Logs - Admin Panel
+                    </h2>
+                    <small>Security activity audit trail - For administrative use only</small>
+                </div>
+                <div class="card-body">
+                    @if (Model.Any())
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>Timestamp</th>
+                                        <th>Session ID</th>
+                                        <th>Action</th>
+                                        <th>Details</th>
+                                        <th>User IP</th>
+                                        <th>User Agent</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var log in Model)
+                                    {
+                                        <tr>
+                                            <td>@log.Timestamp.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                                            <td><small>@log.SessionId</small></td>
+                                            <td>
+                                                @{
+                                                    var badgeClass = "bg-secondary";
+                                                    if (log.Action.Contains("ERROR") || log.Action.Contains("WARN"))
+                                                    {
+                                                        badgeClass = "bg-danger";
+                                                    }
+                                                    else if (log.Action.Contains("SECRET") || log.Action.Contains("SECURITY"))
+                                                    {
+                                                        badgeClass = "bg-warning";
+                                                    }
+                                                    else if (log.Action.Contains("UPLOAD") || log.Action.Contains("SCAN"))
+                                                    {
+                                                        badgeClass = "bg-primary";
+                                                    }
+                                                    else if (log.Action.Contains("AUTH") || log.Action.Contains("LOGIN"))
+                                                    {
+                                                        badgeClass = "bg-info";
+                                                    }
+                                                }
+                                                <span class="badge @badgeClass">@log.Action</span>
+                                            </td>
+                                            <td>@log.Details</td>
+                                            <td><small>@(log.UserIpAddress ?? "N/A")</small></td>
+                                            <td>
+                                                @if (!string.IsNullOrEmpty(log.UserAgent))
+                                                {
+                                                    <small class="text-muted">@(log.UserAgent.Length > 50 ? log.UserAgent.Substring(0, 47) + "..." : log.UserAgent)</small>
+                                                }
+                                                else
+                                                {
+                                                    <small>N/A</small>
+                                                }
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="alert alert-info" role="alert">
+                            <i class="fas fa-info-circle me-2"></i>
+                            No audit logs recorded yet.
+                        </div>
+                    }
+
+                    <div class="mt-3">
+                        <a href="@Url.Action("SecurityFindings", "Admin")" class="btn btn-danger me-2">
+                            <i class="fas fa-shield-alt me-1"></i>Security Findings
+                        </a>
+                        <a href="@Url.Action("ScanResults", "Admin")" class="btn btn-secondary me-2">
+                            <i class="fas fa-list me-1"></i>Scan Results
+                        </a>
+                        <a href="@Url.Action("Index", "Home")" class="btn btn-primary">
+                            <i class="fas fa-home me-1"></i>Back to Main App
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
