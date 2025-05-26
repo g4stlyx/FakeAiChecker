@@ -16,6 +16,8 @@ docker-compose.yml
 test_config.json
 test-document.txt
 test-secrets.env
+test.zip
+test.rar
 
 # Build results
 [Dd]ebug/

@@ -1,11 +1,7 @@
 - profile page for the admin (change password functionality is enough actually, maybe forgot-password too)
 
-- more regex for more kind of secrets
+- 401, 403, 404, 500 pages
 
-- test with zip folders
-
-- check admin pages (one by one too) access again
-
-- test add admin
+- it finds every secret inside zip folders, but not rar (does not open rars but opens zips, thats why. extend these extensions to open)
 
 - test uploading a malware - idk how but needed -
