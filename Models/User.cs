@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel;
 
 namespace FakeAiChecker.Models
 {
@@ -46,6 +47,23 @@ namespace FakeAiChecker.Models
         [Required]
         [Compare("Password")]
         public string ConfirmPassword { get; set; } = string.Empty;
+    }
+
+    public class ChangePasswordModel
+    {
+        [Required]
+        [Display(Name = "Current Password")]
+        public string CurrentPassword { get; set; } = string.Empty;
+        
+        [Required]
+        [StringLength(100, MinimumLength = 8)]
+        [Display(Name = "New Password")]
+        public string NewPassword { get; set; } = string.Empty;
+        
+        [Required]
+        [Compare("NewPassword")]
+        [Display(Name = "Confirm New Password")]
+        public string ConfirmNewPassword { get; set; } = string.Empty;
     }
 
     public class JwtSettings

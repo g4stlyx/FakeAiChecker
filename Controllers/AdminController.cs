@@ -4,6 +4,7 @@ using FakeAiChecker.Data;
 using FakeAiChecker.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using FakeAiChecker.Services;
 
 namespace FakeAiChecker.Controllers
 {
@@ -12,11 +13,13 @@ namespace FakeAiChecker.Controllers
     {
         private readonly ApplicationDbContext _context;
         private readonly ILogger<AdminController> _logger;
+        private readonly AuthService _authService;
 
-        public AdminController(ApplicationDbContext context, ILogger<AdminController> logger)
+        public AdminController(ApplicationDbContext context, ILogger<AdminController> logger, AuthService authService)
         {
             _context = context;
             _logger = logger;
+            _authService = authService;
         }
 
         [HttpGet]
@@ -79,6 +82,57 @@ namespace FakeAiChecker.Controllers
                 .ToListAsync();
 
             return View(logs);
+        }
+
+        // Change password functionality
+        [HttpGet]
+        public IActionResult ChangePassword()
+        {
+            // If not authenticated, redirect to login
+            if (!User.Identity?.IsAuthenticated == true)
+            {
+                return RedirectToAction("Login", "Auth");
+            }
+
+            return View();
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ChangePassword(ChangePasswordModel model)
+        {
+            // If not authenticated, redirect to login
+            if (!User.Identity?.IsAuthenticated == true)
+            {
+                return RedirectToAction("Login", "Auth");
+            }
+
+            if (!ModelState.IsValid)
+            {
+                return View(model);
+            }            var username = User.Identity?.Name;
+            if (string.IsNullOrEmpty(username))
+            {
+                ViewBag.ErrorMessage = "Unable to determine current user";
+                return View(model);
+            }
+
+            var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
+            var userAgent = HttpContext.Request.Headers["User-Agent"].ToString();
+
+            var success = await _authService.ChangePasswordAsync(username, model, ipAddress, userAgent);
+
+            if (success)
+            {
+                ViewBag.SuccessMessage = "Password changed successfully";
+                ModelState.Clear();
+                return View(new ChangePasswordModel());
+            }
+            else
+            {
+                ViewBag.ErrorMessage = "Failed to change password. Please check your current password and try again.";
+                return View(model);
+            }
         }
     }
 }

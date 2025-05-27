@@ -206,5 +206,48 @@ namespace FakeAiChecker.Services
             var token = tokenHandler.CreateToken(tokenDescriptor);
             return tokenHandler.WriteToken(token);
         }
+
+        public async Task<bool> ChangePasswordAsync(string username, ChangePasswordModel model, string? ipAddress = null, string? userAgent = null)
+        {
+            try
+            {
+                var user = await _context.Users
+                    .SingleOrDefaultAsync(u => u.Username.ToLower() == username.ToLower());
+
+                if (user == null)
+                {
+                    await _auditService.LogAsync(Guid.NewGuid().ToString(), "PASSWORD_CHANGE_FAILED", 
+                        $"Password change failed for username: {username} - User not found", ipAddress, userAgent);
+                    return false;
+                }
+
+                // Verify the current password
+                if (!VerifyPasswordHash(model.CurrentPassword, user.PasswordHash, user.PasswordSalt))
+                {
+                    await _auditService.LogAsync(Guid.NewGuid().ToString(), "PASSWORD_CHANGE_FAILED", 
+                        $"Password change failed for username: {username} - Invalid current password", ipAddress, userAgent);
+                    return false;
+                }
+
+                // Create new password hash and salt
+                CreatePasswordHash(model.NewPassword, out byte[] passwordHash, out byte[] passwordSalt);
+
+                // Update user's password
+                user.PasswordHash = passwordHash;
+                user.PasswordSalt = passwordSalt;
+
+                await _context.SaveChangesAsync();
+
+                await _auditService.LogAsync(Guid.NewGuid().ToString(), "PASSWORD_CHANGE_SUCCESS", 
+                    $"Password changed successfully for user {username}", ipAddress, userAgent);
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error during password change for user {Username}", username);
+                return false;
+            }
+        }
     }
 }

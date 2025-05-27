@@ -12,9 +12,12 @@
         <a class="nav-link dropdown-toggle text-light" href="#" id="adminDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
             <i class="fas fa-user-shield me-1"></i>@username
         </a>
-        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="adminDropdown">            <li><a class="dropdown-item" asp-controller="Admin" asp-action="SecurityFindings"><i class="fas fa-key me-1"></i>Security Findings</a></li>
+        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="adminDropdown">            
+            <li><a class="dropdown-item" asp-controller="Admin" asp-action="SecurityFindings"><i class="fas fa-key me-1"></i>Security Findings</a></li>
             <li><a class="dropdown-item" asp-controller="Admin" asp-action="ScanResults"><i class="fas fa-search me-1"></i>Scan Results</a></li>
             <li><a class="dropdown-item" asp-controller="Admin" asp-action="AuditLogs"><i class="fas fa-history me-1"></i>Audit Logs</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item" asp-controller="Admin" asp-action="ChangePassword"><i class="fas fa-edit me-1"></i>Change Password</a></li>
             <li><a class="dropdown-item" asp-controller="Auth" asp-action="Register"><i class="fas fa-user-plus me-1"></i>Add Admin User</a></li>
             <li><hr class="dropdown-divider"></li>
             <li><a class="dropdown-item" asp-controller="Auth" asp-action="Logout"><i class="fas fa-sign-out-alt me-1"></i>Logout</a></li>
