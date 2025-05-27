@@ -2,6 +2,7 @@ using System.Text.RegularExpressions;
 using System.IO.Compression;
 using FakeAiChecker.Models;
 using FakeAiChecker.Data;
+using SharpCompress.Archives;
 
 namespace FakeAiChecker.Services
 {
@@ -193,50 +194,34 @@ namespace FakeAiChecker.Services
                 }
             }
         }
-
         private async Task<List<string>> ScanArchiveAsync(string archivePath, int scanResultId, string sessionId)
         {
             var secrets = new List<string>();
             var extractPath = Path.Combine(Path.GetDirectoryName(archivePath)!, "extracted");
-            
+            const int maxExtractedFiles = 1000; // Limit number of extracted files
+            const long maxTotalExtractedSize = 100 * 1024 * 1024; // 100MB limit for total extracted content
+            const long maxSingleFileSize = 10 * 1024 * 1024; // 10MB limit per file
+
             try
             {
                 Directory.CreateDirectory(extractPath);
+                var archiveExtension = Path.GetExtension(archivePath).ToLowerInvariant();
 
-                // Extract ZIP archive using System.IO.Compression
-                if (Path.GetExtension(archivePath).ToLowerInvariant() == ".zip")
+                // Handle ZIP files with System.IO.Compression (keep existing implementation for performance)
+                if (archiveExtension == ".zip")
                 {
-                    using (var archive = ZipFile.OpenRead(archivePath))
-                    {
-                        foreach (var entry in archive.Entries)
-                        {
-                            // Security check: prevent path traversal
-                            if (entry.FullName.Contains("..") || Path.IsPathRooted(entry.FullName))
-                            {
-                                _logger.LogWarning("Suspicious file path detected: {FileName}", entry.FullName);
-                                continue;
-                            }
-
-                            var entryPath = Path.Combine(extractPath, entry.FullName);
-                            var entryDir = Path.GetDirectoryName(entryPath);
-                            
-                            if (!string.IsNullOrEmpty(entryDir))
-                            {
-                                Directory.CreateDirectory(entryDir);
-                            }
-
-                            if (!string.IsNullOrEmpty(entry.Name))
-                            {
-                                entry.ExtractToFile(entryPath, true);
-                                var fileSecrets = await ScanSingleFileAsync(entryPath, scanResultId, sessionId);
-                                secrets.AddRange(fileSecrets);
-                            }
-                        }
-                    }
+                    secrets = await ExtractZipArchiveAsync(archivePath, extractPath, scanResultId, sessionId,
+                        maxExtractedFiles, maxTotalExtractedSize, maxSingleFileSize);
+                }
+                // Handle RAR, 7Z, TAR, GZ and other formats with SharpCompress
+                else if (archiveExtension is ".rar" or ".7z" or ".tar" or ".gz" or ".bz2" or ".xz")
+                {
+                    secrets = await ExtractSharpCompressArchiveAsync(archivePath, extractPath, scanResultId, sessionId,
+                        maxExtractedFiles, maxTotalExtractedSize, maxSingleFileSize);
                 }
                 else
                 {
-                    // For other archive types, just scan the archive file itself
+                    // For unsupported archive types, just scan the archive file itself
                     var fileSecrets = await ScanSingleFileAsync(archivePath, scanResultId, sessionId);
                     secrets.AddRange(fileSecrets);
                 }
@@ -244,9 +229,203 @@ namespace FakeAiChecker.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error extracting archive for session {SessionId}", sessionId);
+                secrets.Add($"Error extracting archive: {ex.Message}");
+            }
+            finally
+            {
+                // Clean up extracted files
+                if (Directory.Exists(extractPath))
+                {
+                    try
+                    {
+                        Directory.Delete(extractPath, true);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to clean up extracted files for session {SessionId}", sessionId);
+                    }
+                }
             }
 
             return secrets;
+        }
+
+        private async Task<List<string>> ExtractZipArchiveAsync(string archivePath, string extractPath, int scanResultId, string sessionId,
+            int maxFiles, long maxTotalSize, long maxFileSize)
+        {
+            var secrets = new List<string>();
+            var extractedCount = 0;
+            var totalSize = 0L;
+
+            using (var archive = ZipFile.OpenRead(archivePath))
+            {
+                foreach (var entry in archive.Entries)
+                {
+                    if (extractedCount >= maxFiles)
+                    {
+                        _logger.LogWarning("Maximum number of files ({MaxFiles}) reached for archive in session {SessionId}", maxFiles, sessionId);
+                        break;
+                    }
+
+                    // Security check: prevent path traversal and malicious paths
+                    if (!IsValidArchivePath(entry.FullName, sessionId))
+                        continue;
+
+                    // Check file size limits
+                    if (entry.Length > maxFileSize)
+                    {
+                        _logger.LogWarning("File {FileName} exceeds size limit ({Size} bytes) in session {SessionId}", 
+                            entry.FullName, entry.Length, sessionId);
+                        continue;
+                    }
+
+                    if (totalSize + entry.Length > maxTotalSize)
+                    {
+                        _logger.LogWarning("Total extraction size limit ({MaxSize} bytes) would be exceeded in session {SessionId}", 
+                            maxTotalSize, sessionId);
+                        break;
+                    }
+
+                    var entryPath = Path.Combine(extractPath, entry.FullName);
+                    var entryDir = Path.GetDirectoryName(entryPath);
+                    
+                    if (!string.IsNullOrEmpty(entryDir))
+                    {
+                        Directory.CreateDirectory(entryDir);
+                    }
+
+                    if (!string.IsNullOrEmpty(entry.Name))
+                    {
+                        entry.ExtractToFile(entryPath, true);
+                        var fileSecrets = await ScanSingleFileAsync(entryPath, scanResultId, sessionId);
+                        secrets.AddRange(fileSecrets);
+                        extractedCount++;
+                        totalSize += entry.Length;
+                    }
+                }
+            }
+
+            return secrets;
+        }
+
+        private async Task<List<string>> ExtractSharpCompressArchiveAsync(string archivePath, string extractPath, int scanResultId, string sessionId,
+            int maxFiles, long maxTotalSize, long maxFileSize)
+        {
+            var secrets = new List<string>();
+            var extractedCount = 0;
+            var totalSize = 0L;
+
+            try
+            {
+                using var archive = ArchiveFactory.Open(archivePath);
+                
+                foreach (var entry in archive.Entries.Where(e => !e.IsDirectory))
+                {
+                    if (extractedCount >= maxFiles)
+                    {
+                        _logger.LogWarning("Maximum number of files ({MaxFiles}) reached for archive in session {SessionId}", maxFiles, sessionId);
+                        break;
+                    }                    // Security check: prevent path traversal and malicious paths
+                    if (!IsValidArchivePath(entry.Key ?? "", sessionId))
+                        continue;
+
+                    // Check file size limits
+                    if (entry.Size > maxFileSize)
+                    {
+                        _logger.LogWarning("File {FileName} exceeds size limit ({Size} bytes) in session {SessionId}", 
+                            entry.Key, entry.Size, sessionId);
+                        continue;
+                    }
+
+                    if (totalSize + entry.Size > maxTotalSize)
+                    {
+                        _logger.LogWarning("Total extraction size limit ({MaxSize} bytes) would be exceeded in session {SessionId}", 
+                            maxTotalSize, sessionId);
+                        break;
+                    }                    // Sanitize the file path and create directories
+                    var sanitizedPath = SanitizeArchivePath(entry.Key ?? "");
+                    var entryPath = Path.Combine(extractPath, sanitizedPath);
+                    var entryDir = Path.GetDirectoryName(entryPath);
+                    
+                    if (!string.IsNullOrEmpty(entryDir))
+                    {
+                        Directory.CreateDirectory(entryDir);
+                    }
+
+                    // Extract the file
+                    using (var entryStream = entry.OpenEntryStream())
+                    using (var fileStream = File.Create(entryPath))
+                    {
+                        await entryStream.CopyToAsync(fileStream);
+                    }
+
+                    var fileSecrets = await ScanSingleFileAsync(entryPath, scanResultId, sessionId);
+                    secrets.AddRange(fileSecrets);
+                    extractedCount++;
+                    totalSize += entry.Size;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error extracting SharpCompress archive for session {SessionId}", sessionId);
+                secrets.Add($"Error extracting archive with SharpCompress: {ex.Message}");
+            }
+
+            return secrets;
+        }
+
+        private bool IsValidArchivePath(string path, string sessionId)
+        {
+            // Security checks for malicious paths
+            if (string.IsNullOrWhiteSpace(path))
+                return false;
+
+            // Check for path traversal attacks
+            if (path.Contains("..") || Path.IsPathRooted(path))
+            {
+                _logger.LogWarning("Suspicious file path detected: {FileName} in session {SessionId}", path, sessionId);
+                return false;
+            }
+
+            // Check for suspicious file names (Windows specific)
+            var fileName = Path.GetFileName(path);
+            if (string.IsNullOrEmpty(fileName))
+                return false;
+
+            // Block Windows reserved names
+            var reservedNames = new[] { "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9" };
+            var baseFileName = Path.GetFileNameWithoutExtension(fileName).ToUpperInvariant();
+            if (reservedNames.Contains(baseFileName))
+            {
+                _logger.LogWarning("Reserved file name detected: {FileName} in session {SessionId}", fileName, sessionId);
+                return false;
+            }
+
+            // Block files with suspicious extensions that could be executed
+            var extension = Path.GetExtension(fileName).ToLowerInvariant();
+            var dangerousExtensions = new[] { ".exe", ".bat", ".cmd", ".com", ".scr", ".pif", ".vbs", ".js", ".jar", ".ps1", ".msi" };
+            if (dangerousExtensions.Contains(extension))
+            {
+                _logger.LogWarning("Potentially dangerous file extension detected: {FileName} in session {SessionId}", fileName, sessionId);
+                return false;
+            }
+
+            return true;
+        }
+
+        private static string SanitizeArchivePath(string path)
+        {
+            // Remove any leading slashes and normalize path separators
+            path = path.TrimStart('/', '\\');
+            
+            // Replace any remaining invalid characters
+            var invalidChars = Path.GetInvalidFileNameChars().Concat(Path.GetInvalidPathChars()).ToArray();
+            foreach (var invalidChar in invalidChars)
+            {
+                path = path.Replace(invalidChar, '_');
+            }
+            
+            return path;
         }
 
         private async Task<List<string>> ScanSingleFileAsync(string filePath, int scanResultId, string sessionId)
@@ -316,11 +495,10 @@ namespace FakeAiChecker.Services
             var end = Math.Min(content.Length, index + contextLength);
             return content[start..end].Replace("\n", " ").Replace("\r", " ");
         }
-
         private static bool IsArchiveFile(string fileName)
         {
             var extension = Path.GetExtension(fileName).ToLowerInvariant();
-            return extension is ".zip" or ".rar" or ".7z" or ".tar" or ".gz";
+            return extension is ".zip" or ".rar" or ".7z" or ".tar" or ".gz" or ".bz2" or ".xz";
         }
 
         private static int GenerateRandomPercentage()
