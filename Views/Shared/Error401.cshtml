@@ -1,0 +1,79 @@
+@model ErrorViewModel
+@{
+    ViewData["Title"] = "Access Denied";
+}
+
+<div class="container text-center" style="padding-top: 60px;">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="error-template">
+                <h1 class="display-1 text-warning">@(Model?.StatusCode == 401 ? "401" : "403")</h1>
+                <h2 class="h3 mb-4">@(Model?.StatusCode == 401 ? "Authentication Required" : "Access Forbidden")</h2>
+                <div class="error-details mb-4">
+                    @if (Model?.StatusCode == 401)
+                    {
+                        <p class="lead">You need to log in to access this resource.</p>
+                        <p class="text-muted">Please sign in with your credentials to continue.</p>
+                    }
+                    else
+                    {
+                        <p class="lead">You don't have permission to access this resource.</p>
+                        <p class="text-muted">Contact your administrator if you believe this is an error.</p>
+                    }
+                </div>
+                <div class="error-actions">
+                    @if (Model?.StatusCode == 401)
+                    {
+                        <a href="@Url.Action("Login", "Auth")" class="btn btn-warning btn-lg me-2">
+                            <i class="bi bi-person"></i> Sign In
+                        </a>
+                    }
+                    <a href="@Url.Action("Index", "Home")" class="btn btn-primary btn-lg me-2">
+                        <i class="bi bi-house"></i> Go Home
+                    </a>
+                    <button onclick="history.back()" class="btn btn-outline-secondary btn-lg">
+                        <i class="bi bi-arrow-left"></i> Go Back
+                    </button>
+                </div>
+                
+                @if (Model?.ShowRequestId == true)
+                {
+                    <div class="mt-4">
+                        <p class="text-muted small">
+                            <strong>Request ID:</strong> <code>@Model.RequestId</code>
+                        </p>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .error-template {
+        padding: 40px 15px;
+        text-align: center;
+    }
+    
+    .error-template h1 {
+        font-size: 8rem;
+        font-weight: 700;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .error-actions .btn {
+        margin: 5px;
+    }
+    
+    @@media (max-width: 768px) {
+        .error-template h1 {
+            font-size: 4rem;
+        }
+        
+        .error-actions .btn {
+            display: block;
+            margin: 10px auto;
+            width: 200px;
+        }
+    }
+</style>
